@@ -1,0 +1,39 @@
+FROM mcr.microsoft.com/dotnet/sdk:8.0-alpine AS builder
+ARG BUILD_CONFIG=Release
+WORKDIR /src
+
+COPY ["OrchestrationPlatform.Api/OrchestrationPlatform.Api.csproj","OrchestrationPlatform.Api/"]
+RUN dotnet restore "./OrchestrationPlatform.Api/OrchestrationPlatform.Api.csproj"
+
+COPY ..
+WORKDIR /src/OrchestrationPlatform.Api
+
+RUN dotnet build "OrchestrationPlatform.Api.csproj" -c $BUILD_CONFIG 
+RUN dotnet publish "./OrchestrationPlatform.Api.csproj" -c $BUILD_CONFIG --no-build -o /app/publish /p:UseAppHost=false
+
+
+
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine AS final
+WORKDIR /app
+
+LABEL maintainer="Maedeh" \
+      service="OrchestrationPlatform.Api" \
+      tier="Backend" \
+      environment="Production"
+
+USER $APP_UID
+ENV ASPNETCORE_URLS=http://+:8080
+EXPOSE 8080
+
+COPY --from=builder /app/publish .
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget -qO- http://localhost:8080/health || exit 1
+
+ENTRYPOINT ["dotnet", "OrchestrationPlatform.Api.dll"]
+
+
+
+
+
+
